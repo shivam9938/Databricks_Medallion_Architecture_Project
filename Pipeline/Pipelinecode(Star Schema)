@@ -1,0 +1,139 @@
+# Upgrade Databricks SDK to the latest version and restart Python to see updated packages
+%pip install --upgrade databricks-sdk==0.70.0
+%restart_python
+
+from databricks.sdk.service.jobs import JobSettings as Job
+
+
+Pipeline_Star_Schema = Job.from_dict(
+    {
+        "name": "Pipeline(Star Schema)",
+        "tasks": [
+            {
+                "task_key": "Parameters",
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Parameters",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Bronze_Autoloader",
+                "depends_on": [
+                    {
+                        "task_key": "Parameters",
+                    },
+                ],
+                "for_each_task": {
+                    "inputs": "{{tasks.Parameters.values.output_param}}",
+                    "task": {
+                        "task_key": "Bronze_Autoloader_iteration",
+                        "notebook_task": {
+                            "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Bronze_Layer",
+                            "base_parameters": {
+                                "file_name": "{{input.file_name}}",
+                            },
+                            "source": "WORKSPACE",
+                        },
+                    },
+                },
+            },
+            {
+                "task_key": "Silver_Customers",
+                "depends_on": [
+                    {
+                        "task_key": "Bronze_Autoloader",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Silver_Layer_Customers",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Silver_Orders",
+                "depends_on": [
+                    {
+                        "task_key": "Bronze_Autoloader",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Silver_Layer_Orders",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Silvers_Products",
+                "depends_on": [
+                    {
+                        "task_key": "Bronze_Autoloader",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Silver_Layer_Products",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Gold_Customers_SCD-1",
+                "depends_on": [
+                    {
+                        "task_key": "Silver_Customers",
+                    },
+                    {
+                        "task_key": "Silver_Orders",
+                    },
+                    {
+                        "task_key": "Silvers_Products",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Gold_Layer_Customers",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Gold_Products_SCD-2",
+                "depends_on": [
+                    {
+                        "task_key": "Silvers_Products",
+                    },
+                    {
+                        "task_key": "Silver_Customers",
+                    },
+                    {
+                        "task_key": "Silver_Orders",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Gold_Layer_Products",
+                    "source": "WORKSPACE",
+                },
+            },
+            {
+                "task_key": "Gold_Fact_Orders",
+                "depends_on": [
+                    {
+                        "task_key": "Gold_Customers_SCD-1",
+                    },
+                    {
+                        "task_key": "Gold_Products_SCD-2",
+                    },
+                ],
+                "notebook_task": {
+                    "notebook_path": "/Workspace/Users/kumar.shivam9938@gmail.com/Databricks Project/Gold_Layer_Orders",
+                    "source": "WORKSPACE",
+                },
+            },
+        ],
+        "queue": {
+            "enabled": True,
+        },
+        "performance_target": "PERFORMANCE_OPTIMIZED",
+    }
+)
+
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()
+w.jobs.reset(new_settings=Pipeline_Star_Schema, job_id=305429853848144)
+# or create a new job using: w.jobs.create(**Pipeline_Star_Schema.as_shallow_dict())
